@@ -1,48 +1,40 @@
 package main
 
 import (
-	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
-	"net/http"
 )
 
-type LocationArea struct {
-	count    int     `json:"count"`
-	next     *string `json:"next"`
-	previous *string `"json:"previous"`
-	results  []Area  `json:"results"`
-}
-
-type Area struct {
-	name string `json:"name"`
-	url  string `json:"url"`
-}
-
-func commandMap(config *Config) error {
-	target := config.next
-	if target == "" {
-		target = "http://pokeapi.co/api/v2/location-area?offset=0&limit=20"
-	}
-	res, err := http.Get(target)
+func commandMapf(cfg *config) error {
+	locationsResp, err := cfg.pokeapiClient.ListLocations(cfg.nextLocationsURL)
 	if err != nil {
 		return err
 	}
-	defer res.Body.Close()
-	fmt.Printf("Status code: %v\n", res.StatusCode)
-	if res.StatusCode > 299 {
-		return fmt.Errorf("Request failed with status code: %d", res.StatusCode)
+
+	cfg.nextLocationsURL = locationsResp.Next
+	cfg.prevLocationsURL = locationsResp.Previous
+
+	for _, loc := range locationsResp.Results {
+		fmt.Println(loc.Name)
+	}
+	return nil
+}
+
+func commandMapb(cfg *config) error {
+	if cfg.prevLocationsURL == nil {
+		return errors.New("you're on the first page")
 	}
 
-	data, err := io.ReadAll(res.Body)
+	locationResp, err := cfg.pokeapiClient.ListLocations(cfg.prevLocationsURL)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%v\n", res.Body)
-	area := LocationArea{}
-	if err := json.Unmarshal(data, &area); err != nil {
-		return err
+
+	cfg.nextLocationsURL = locationResp.Next
+	cfg.prevLocationsURL = locationResp.Previous
+
+	for _, loc := range locationResp.Results {
+		fmt.Println(loc.Name)
 	}
-	fmt.Printf("%d\n", area.count)
 	return nil
 }
